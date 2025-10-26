@@ -1,0 +1,253 @@
+# ==============================================================================
+# 1. Configuração Inicial e Utilitários
+# ==============================================================================
+
+# Tabuleiro Inicial (usando a representação dada)
+TABULEIRO_INICIAL = [
+    ['r', 'c', 'b', 'd', 'r', 'b', 'c', 't'],  # Linha 8 (índice 0)
+    ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'],  # Linha 7 (índice 1)
+    ['.', '.', '.', '.', '.', '.', '.', '.'],  # Linha 6 (índice 2)
+    ['.', '.', '.', '.', '.', '.', '.', '.'],  # Linha 5 (índice 3)
+    ['.', '.', '.', '.', '.', '.', '.', '.'],  # Linha 4 (índice 4)
+    ['.', '.', '.', '.', '.', '.', '.', '.'],  # Linha 3 (índice 5)
+    ['P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'],  # Linha 2 (índice 6)
+    ['T', 'C', 'B', 'D', 'R', 'B', 'C', 'T']   # Linha 1 (índice 7)
+]
+
+def traduzir_coordenadas(notacao_algebrica):
+    """
+    Desafio Extra: Traduz uma notação de xadrez (ex: 'a1') para índices da matriz (ex: (7, 0)).
+    
+    A notação 'a1' corresponde à linha 1 e coluna 'a'.
+    No índice da matriz:
+    - Colunas (letras): 'a' -> 0, 'h' -> 7
+    - Linhas (números): '1' -> 7, '8' -> 0 (inverso)
+    """
+    coluna_notacao = notacao_algebrica[0].lower()
+    linha_notacao = int(notacao_algebrica[1])
+    
+    # Mapeamento de coluna: 'a' a 'h' para 0 a 7
+    coluna_idx = ord(coluna_notacao) - ord('a')
+    
+    # Mapeamento de linha: '1' a '8' para 7 a 0
+    linha_idx = 8 - linha_notacao
+    
+    return linha_idx, coluna_idx
+
+def obter_peca(tabuleiro, coordenadas):
+    """Retorna a letra da peça nas coordenadas (linha, coluna)."""
+    linha, coluna = coordenadas
+    return tabuleiro[linha][coluna]
+
+def obter_cor(peca):
+    """Retorna 'Branca' ou 'Preta' com base na letra da peça."""
+    if peca == '.':
+        return None
+    return 'Branca' if peca.isupper() else 'Preta'
+
+def e_movimento_horizontal_vertical(origem, destino):
+    """Verifica se o movimento é puramente horizontal ou vertical."""
+    r1, c1 = origem
+    r2, c2 = destino
+    return r1 == r2 or c1 == c2
+
+def e_movimento_diagonal(origem, destino):
+    """Verifica se o movimento é puramente diagonal."""
+    r1, c1 = origem
+    r2, c2 = destino
+    return abs(r1 - r2) == abs(c1 - c2)
+
+def e_bloqueado(tabuleiro, origem, destino):
+    """
+    Checa se há peças no caminho entre origem e destino (exclusivo para Torre, Bispo e Dama).
+    O movimento deve ser horizontal, vertical ou diagonal.
+    """
+    r1, c1 = origem
+    r2, c2 = destino
+    
+    dr = 0 if r1 == r2 else (1 if r2 > r1 else -1) # Direção da linha
+    dc = 0 if c1 == c2 else (1 if c2 > c1 else -1) # Direção da coluna
+    
+    r_atual, c_atual = r1 + dr, c1 + dc
+    
+    while r_atual != r2 or c_atual != c2:
+        if tabuleiro[r_atual][c_atual] != '.':
+            return True # Caminho bloqueado
+        
+        r_atual += dr
+        c_atual += dc
+        
+    return False # Caminho livre
+
+# ==============================================================================
+# 2. Lógica de Movimento por Peça
+# ==============================================================================
+
+def e_movimento_de_peao_valido(tabuleiro, origem, destino, cor_peca):
+    r1, c1 = origem
+    r2, c2 = destino
+    
+    dr = r2 - r1
+    dc = abs(c2 - c1)
+    
+    # Direção de movimento (Brancas descem: -1, Pretas sobem: +1)
+    direcao = -1 if cor_peca == 'Branca' else 1
+    
+    peca_destino = obter_peca(tabuleiro, destino)
+    
+    # 1. Movimento para frente (não pode capturar para frente)
+    if dc == 0:
+        if peca_destino != '.':
+            return False # Bloqueado
+        
+        if dr == direcao:
+            return True # Movimento normal de uma casa
+        
+        # Primeiro movimento de duas casas
+        if dr == 2 * direcao and (r1 == 6 and cor_peca == 'Branca' or r1 == 1 and cor_peca == 'Preta'):
+            # Precisa checar se a casa intermediária está vazia
+            r_intermed = r1 + direcao
+            c_intermed = c1
+            if tabuleiro[r_intermed][c_intermed] == '.':
+                return True
+        
+        return False
+        
+    # 2. Captura diagonal
+    if dc == 1 and dr == direcao:
+        return peca_destino != '.' # Só pode mover se estiver capturando
+        
+    return False
+
+def e_movimento_de_torre_valido(tabuleiro, origem, destino):
+    if not e_movimento_horizontal_vertical(origem, destino):
+        return False
+    
+    return not e_bloqueado(tabuleiro, origem, destino)
+
+def e_movimento_de_bispo_valido(tabuleiro, origem, destino):
+    if not e_movimento_diagonal(origem, destino):
+        return False
+    
+    return not e_bloqueado(tabuleiro, origem, destino)
+
+def e_movimento_de_dama_valido(tabuleiro, origem, destino):
+    if e_movimento_horizontal_vertical(origem, destino) or e_movimento_diagonal(origem, destino):
+        return not e_bloqueado(tabuleiro, origem, destino)
+        
+    return False
+
+def e_movimento_de_cavalo_valido(origem, destino):
+    r1, c1 = origem
+    r2, c2 = destino
+    
+    dr = abs(r1 - r2)
+    dc = abs(c1 - c2)
+    
+    # Movimento em "L": (1, 2) ou (2, 1)
+    return (dr == 1 and dc == 2) or (dr == 2 and dc == 1)
+
+def e_movimento_de_rei_valido(origem, destino):
+    r1, c1 = origem
+    r2, c2 = destino
+    
+    dr = abs(r1 - r2)
+    dc = abs(c1 - c2)
+    
+    # Movimento de uma casa em qualquer direção
+    return dr <= 1 and dc <= 1 and (dr != 0 or dc != 0)
+
+# Mapeamento para chamar a função de lógica da peça correta
+LOGICA_PECA = {
+    'P': e_movimento_de_peao_valido, 'p': e_movimento_de_peao_valido,
+    'T': e_movimento_de_torre_valido, 't': e_movimento_de_torre_valido,
+    'B': e_movimento_de_bispo_valido, 'b': e_movimento_de_bispo_valido,
+    'D': e_movimento_de_dama_valido, 'd': e_movimento_de_dama_valido,
+    'C': e_movimento_de_cavalo_valido, 'c': e_movimento_de_cavalo_valido,
+    'R': e_movimento_de_rei_valido, 'r': e_movimento_de_rei_valido,
+}
+
+# ==============================================================================
+# 3. Função Principal de Checagem
+# ==============================================================================
+
+def checar_movimento(tabuleiro, casa_origem_notacao, casa_destino_notacao):
+    """
+    Função principal. Verifica se um movimento de xadrez é válido.
+    """
+    
+    # 1. Traduzir coordenadas
+    try:
+        origem = traduzir_coordenadas(casa_origem_notacao)
+        destino = traduzir_coordenadas(casa_destino_notacao)
+    except:
+        print(f"Erro: Coordenadas '{casa_origem_notacao}' ou '{casa_destino_notacao}' inválidas.")
+        return False
+        
+    peca_origem = obter_peca(tabuleiro, origem)
+    peca_destino = obter_peca(tabuleiro, destino)
+    cor_origem = obter_cor(peca_origem)
+    cor_destino = obter_cor(peca_destino)
+
+    # Regra 1: Peça no Local (Não se pode mover o vazio)
+    if peca_origem == '.':
+        # print("INVÁLIDO: Casa de origem vazia.")
+        return False
+        
+    # Regra 2: Captura Amiga (Não se pode capturar uma peça sua)
+    if cor_destino is not None and cor_origem == cor_destino:
+        # print("INVÁLIDO: Captura amiga.")
+        return False
+        
+    # Regra 3: Lógica da Peça
+    
+    # O Cavalo não precisa checar bloqueio, mas o restante precisa passar o tabuleiro
+    if peca_origem.upper() in ['P', 'R', 'C']:
+        # Peão, Rei, Cavalo
+        valido = LOGICA_PECA[peca_origem](origem, destino) if peca_origem.upper() in ['R', 'C'] else LOGICA_PECA[peca_origem](tabuleiro, origem, destino, cor_origem)
+    else:
+        # Torre, Bispo, Dama
+        valido = LOGICA_PECA[peca_origem](tabuleiro, origem, destino)
+        
+    # if not valido:
+    #     print(f"INVÁLIDO: Movimento {peca_origem} de {casa_origem_notacao} para {casa_destino_notacao} não segue a lógica da peça.")
+        
+    return valido
+
+# ==============================================================================
+# 4. Exemplos de Teste (Baseado no Desafio)
+# ==============================================================================
+
+print("--- Testes com o TABULEIRO_INICIAL ---")
+
+# a) Peão Brando (e2) para (e4) - VÁLIDO (primeiro movimento de 2 casas)
+print(f"e2 para e4 (Peão Brando): {checar_movimento(TABULEIRO_INICIAL, 'e2', 'e4')}") 
+
+# b) Peão Brando (e2) para (e3) - VÁLIDO (movimento de 1 casa)
+print(f"e2 para e3 (Peão Brando): {checar_movimento(TABULEIRO_INICIAL, 'e2', 'e3')}") 
+
+# c) Peão Brando (e2) para (e5) - INVÁLIDO (mais que 2 casas)
+print(f"e2 para e5 (Peão Brando): {checar_movimento(TABULEIRO_INICIAL, 'e2', 'e5')}") 
+
+# d) Cavalo Branco (b1) para (c3) - VÁLIDO (movimento em L)
+print(f"b1 para c3 (Cavalo Brando): {checar_movimento(TABULEIRO_INICIAL, 'b1', 'c3')}") 
+
+# e) Torre Branca (a1) para (a8) - INVÁLIDO (bloqueada pelo Peão em a2)
+print(f"a1 para a8 (Torre Branca): {checar_movimento(TABULEIRO_INICIAL, 'a1', 'a8')}") 
+
+# f) Captura Amiga: Peão Branco (a2) para (b1) - INVÁLIDO (Torre em b1 - não é no tabuleiro inicial)
+# No tabuleiro inicial, b1 é um Cavalo (C)
+print(f"a2 para b1 (Captura Amiga): {checar_movimento(TABULEIRO_INICIAL, 'a2', 'b1')}") 
+
+# g) Peão Branco (e2) para Captura Inimiga (d3) - INVÁLIDO (sem peça preta em d3)
+print(f"e2 para d3 (Peão sem captura): {checar_movimento(TABULEIRO_INICIAL, 'e2', 'd3')}") 
+
+# h) Peão Preto (e7) para Captura Inimiga (d6) - VÁLIDO (se houver peça branca em d6)
+# **NOTA**: O tabuleiro inicial está vazio em d6, então deve ser INVÁLIDO
+print(f"e7 para d6 (Peão sem captura): {checar_movimento(TABULEIRO_INICIAL, 'e7', 'd6')}") 
+
+# i) Movendo Vazio: (e5) para (e6) - INVÁLIDO (casa de origem vazia)
+print(f"e5 para e6 (Movendo Vazio): {checar_movimento(TABULEIRO_INICIAL, 'e5', 'e6')}") 
+
+# Teste adicional: Cavalo em b8 (c) para a6 ou c6 - VÁLIDO
+print(f"b8 para a6 (Cavalo Preto): {checar_movimento(TABULEIRO_INICIAL, 'b8', 'a6')}")
